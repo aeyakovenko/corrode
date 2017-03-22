@@ -39,6 +39,7 @@ import Data.List
 import qualified Data.Map.Lazy as Map
 import Data.Maybe
 import Text.PrettyPrint.HughesPJClass hiding (empty)
+import Debug.Trace as T
 ```
 
 
@@ -330,7 +331,9 @@ removeEmptyBlocks (CFG start blocks) = CFG (rewrite start) blocks'
         (empties', done') <- get
         let to' = IntMap.findWithDefault to to done'
         put (empties', IntMap.insert from to' done')
-    isBlockEmpty (BasicBlock s (Branch to)) | null s = Just to
+    isBlockEmpty (BasicBlock s (Branch to)) | null s = do 
+        T.traceM ("is block empty: " ++ (show to))
+        Just to
     isBlockEmpty _ = Nothing
     rewrites = snd $ execState go (IntMap.mapMaybe isBlockEmpty blocks, IntMap.empty)
     rewrite to = IntMap.findWithDefault to to rewrites
@@ -695,11 +698,11 @@ unifyBreaks cfg loops = (breaks, Map.fromList exits')
     exits = exitEdges cfg loops
     (breakList, continues) = partitionEithers
         [ case exit of
-            BreakFrom header -> Left (header, IntSet.singleton to)
+            BreakFrom header -> Left (T.trace ("breakFrom: " ++ show (header, to)) header, IntSet.singleton to)
             Continue -> Right orig
-        | orig@((_, to), exit) <- Map.toList exits
+        | orig@((_, to), exit) <- Map.toList (T.trace ("unifyBreak exits: " ++ show (loops, exits)) exits)
         ]
-    breaks = IntMap.map IntSet.findMax (IntMap.fromListWith IntSet.union breakList)
+    breaks = IntMap.map IntSet.findMax (IntMap.fromListWith IntSet.union (T.trace ("break list " ++ show (breakList, continues)) breakList))
     breakExits header to = fromMaybe [] $ do
         candidates <- IntMap.lookup to (predecessors cfg)
         insideLoop <- IntMap.lookup header loops
@@ -871,7 +874,9 @@ leading to duplicate code at best.
 
 ```haskell
     doTerm _ Unreachable = return mempty
-    doTerm label (Branch to) = join (followEdge label to)
+    doTerm label (Branch to) = do 
+        T.traceM ("Branch: " ++ show to)
+        join (followEdge label to)
     doTerm label (CondBranch c t f) = do
         (consumeT, tReachable) <- RWS.listen (followEdge label t)
         (consumeF, fReachable) <- RWS.listen (followEdge label f)

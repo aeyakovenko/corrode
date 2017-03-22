@@ -19,6 +19,7 @@ import System.Environment
 import System.Exit
 import System.FilePath
 import Text.PrettyPrint.HughesPJClass
+import Debug.Trace as T
 ```
 
 There are lots of steps in this process, and several of them return an
@@ -102,7 +103,9 @@ main = dieOnError $ do
 1. Generate a list of Rust items from this C translation unit.
 
     ```haskell
+        T.traceM "start"
         items <- try (interpretTranslationUnit unit)
+        T.traceM ("items: " ++ show items)
     ```
 
 1. Pretty-print all the items as a `String`.

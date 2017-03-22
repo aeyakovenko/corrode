@@ -43,6 +43,7 @@ import Language.C.Data.Ident
 import qualified Language.Rust.AST as Rust
 import Language.Rust.Corrode.CFG
 import Text.PrettyPrint.HughesPJClass hiding (Pretty)
+import Debug.Trace as T
 ```
 
 This translation proceeds in a syntax-directed way. That is, we just
@@ -538,6 +539,7 @@ three possible kinds for each declaration:
     perDecl (CFDefExt f) = interpretFunction f
     perDecl (CDeclExt decl') = do
         binds <- interpretDeclarations makeStaticBinding decl'
+        when (not $ null binds) $ T.traceM ("binds: " ++ show binds)
         emitItems binds
     perDecl decl = unimplemented decl
 ```
@@ -1803,6 +1805,7 @@ block if we have `let`-bindings, but not otherwise.
 ```haskell
 interpretStatement (CFor initial mcond mincr body _) next = do
     after <- newLabel
+    T.traceM ("new for label " ++ show after)
 
     ret <- mapBuildCFGT (mapRWST scope) $ do
         prefix <- case initial of
@@ -1864,9 +1867,14 @@ interpretStatement stmt@(CCont _) next = do
 interpretStatement stmt@(CBreak _) next = do
     _ <- next
     val <- lift (asks onBreak)
+    T.traceM "CBreak"
     case val of
-        Just label -> return ([], Branch label)
-        Nothing -> lift $ lift $ badSource stmt "break outside loop"
+        Just label -> do 
+            T.traceM ("CBreak label: " ++ (show label))
+            return ([], Branch label)
+        Nothing -> do 
+            T.traceM "CBreak no label"
+            lift $ lift $ badSource stmt "break outside loop"
 ```
 
 `return` statements are pretty straightforward&mdash;translate the

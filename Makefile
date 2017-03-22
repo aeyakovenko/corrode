@@ -1,3 +1,9 @@
+all:
+	.cabal-sandbox/bin/corrode test.c
+
+build:
+	cabal install
+
 docs: doc/corrode.pdf doc/cfg.pdf doc/driver.pdf
 
 doc/corrode.pdf: src/Language/Rust/Corrode/C.md
