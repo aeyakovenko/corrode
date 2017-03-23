@@ -97,15 +97,18 @@ main = dieOnError $ do
 1. Get language-c to parse the preprocessed source to a `CTranslUnit`.
 
     ```haskell
+        T.traceM "parseC"
         unit <- withExceptT show (try (parseC input (initPos (inputFile args))))
+        -- T.traceM $ concat [ "unit: ", show unit]
     ```
 
 1. Generate a list of Rust items from this C translation unit.
 
     ```haskell
-        T.traceM "start"
+        T.traceM "interpretTranslationUnit"
         items <- try (interpretTranslationUnit unit)
-        T.traceM ("items: " ++ show items)
+        T.traceM "done interpretTranslationUnit"
+        -- T.traceM $ concat [ "items: ", show items]
     ```
 
 1. Pretty-print all the items as a `String`.

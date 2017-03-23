@@ -71,6 +71,7 @@ anything, but it's convenient to use distinct integers as labels.
 
 ```haskell
 data BasicBlock s c = BasicBlock s (Terminator c)
+                    deriving Show
 type Label = Int
 ```
 
@@ -100,6 +101,7 @@ data Terminator' c l
     = Unreachable
     | Branch l
     | CondBranch c l l
+    deriving Show
 ```
 
 The above `Terminator'` type has two generic type parameters:
@@ -157,6 +159,7 @@ figure that out!
 data Unordered
 data DepthFirst
 data CFG k s c = CFG Label (IntMap.IntMap (BasicBlock s c))
+               deriving Show
 ```
 
 When things go wrong, it's handy to be able to print a human-readable
@@ -315,6 +318,7 @@ removeEmptyBlocks (CFG start blocks) = CFG (rewrite start) blocks'
     where
     go = do
         (empties, done) <- get
+        T.traceM ("empties: " ++ (show empties))
         case IntMap.minViewWithKey empties of
             Nothing -> return ()
             Just ((from, to), empties') -> do
@@ -451,22 +455,30 @@ implementation has a bonus feature that it simply deletes unreachable
 nodes.
 
 ```haskell
-depthFirstOrder :: CFG k s c -> CFG DepthFirst s c
-depthFirstOrder (CFG start blocks) = CFG start' blocks'
+depthFirstOrder :: (Show c, Show s) => CFG k s c -> CFG DepthFirst s c
+depthFirstOrder cfg@(CFG start blocks) = CFG start' blocks'
     where
     search label = do
+        T.traceM $ concat ["remCFG ", show cfg]
+        T.traceM $ concat ["search ", show label]
         (seen, order) <- get
         unless (label `IntSet.member` seen) $ do
             put (IntSet.insert label seen, order)
             case IntMap.lookup label blocks of
-                Just (BasicBlock _ term) -> traverse_ search term
-                _ -> return ()
+                Just (BasicBlock _ term) -> do 
+                    T.traceM $ concat ["lookup success for ", show label, " ", show blocks]
+                    traverse_ search term
+                _ -> do 
+                    T.traceM $ concat ["lookup failure for ", show label, " ", show blocks]
+                    return ()
             modify (\ (seen', order') -> (seen', label : order'))
     final = snd (execState (search start) (IntSet.empty, []))
     start' = 0
-    mapping = IntMap.fromList (zip final [start'..])
+    mapping = let a = IntMap.fromList (zip final [start'..])
+              in  trace (concat ["mapping ", show a]) a
     rewrite label = IntMap.findWithDefault (error "basic block disappeared") label mapping
-    rewriteBlock label (BasicBlock body term) = (label, BasicBlock body (fmap rewrite term))
+    rewriteBlock label (BasicBlock body term) = trace ("rewriteBlock: " ++ show label) $
+        (label, BasicBlock body (fmap rewrite term))
     blocks' = IntMap.fromList (IntMap.elems (IntMap.intersectionWith rewriteBlock mapping blocks))
 ```
 
@@ -741,7 +753,7 @@ loop name from it, to support multi-level exits.
 
 ```haskell
 structureCFG
-    :: Monoid s
+    :: (Monoid s, Show s, Show c)
     => (Label -> s)
     -> (Label -> s)
     -> (Label -> s -> s)
@@ -750,6 +762,8 @@ structureCFG
     -> Either String s
 structureCFG mkBreak mkContinue mkLoop mkIf cfg@(CFG start blocks) = runExcept $ do
     doms <- except $ dominators cfg
+    T.traceM $ concat ["start cfg " , show cfg]
+    T.traceM $ concat ["doms " , show doms]
     let loops = naturalLoops cfg doms
     let (breaks, exits) = unifyBreaks cfg loops
     let input = StructureInput

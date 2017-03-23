@@ -1,5 +1,5 @@
-all:
-	.cabal-sandbox/bin/corrode test.c
+all: build
+	.cabal-sandbox/bin/corrode test.c 2>&1 | tee /tmp/out
 
 build:
 	cabal install

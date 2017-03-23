@@ -1639,6 +1639,7 @@ interpretStatement (CLabel ident body _ _) next = do
     label <- gotoLabel ident
     (rest, end) <- interpretStatement body next
     addBlock label rest end
+    T.traceM $ concat ["CLabel ", show label]
     return ([], Branch label)
 ```
 
@@ -1716,11 +1717,12 @@ interpretStatement (CIf c t mf _) next = do
     falseLabel <- case mf of
         Nothing -> return after
         Just f -> do
+            T.traceM $ concat ["CIf after1 ", show after]
             (falseEntry, falseTerm) <- interpretStatement f (return ([], Branch after))
             falseLabel <- newLabel
             addBlock falseLabel falseEntry falseTerm
             return falseLabel
-
+    T.traceM $ concat ["CIf after2 ", show after]
     (trueEntry, trueTerm) <- interpretStatement t (return ([], Branch after))
     trueLabel <- newLabel
     addBlock trueLabel trueEntry trueTerm
@@ -1849,6 +1851,7 @@ interpretStatement (CFor initial mcond mincr body _) next = do
 interpretStatement (CGoto ident _) next = do
     _ <- next
     label <- gotoLabel ident
+    T.traceM $ concat ["goto ", show label]
     return ([], Branch label)
 ```
 
@@ -1862,7 +1865,9 @@ interpretStatement stmt@(CCont _) next = do
     _ <- next
     val <- lift (asks onContinue)
     case val of
-        Just label -> return ([], Branch label)
+        Just label -> do 
+            T.traceM $ concat ["interpretStatement CCont ", show label]
+            return ([], Branch label)
         Nothing -> lift $ lift $ badSource stmt "continue outside loop"
 interpretStatement stmt@(CBreak _) next = do
     _ <- next
@@ -1933,7 +1938,9 @@ addSwitchCase condition body next = do
     condition' <- lift $ lift $ mapM (interpretExpr True) condition
     next' <- interpretStatement body next
     label <- case next' of
-        ([], Branch to) -> return to
+        ([], Branch to) -> do 
+            T.traceM $ concat ["addSwitchCase ", show to]
+            return to
         (rest, end) -> do
             label <- newLabel
             addBlock label rest end
@@ -1991,8 +1998,12 @@ yet.
 
 ```haskell
     let cfg = depthFirstOrder (removeEmptyBlocks rawCFG)
+    T.traceM $ concat ["rawCFG " , show rawCFG]
+    T.traceM $ concat ["dfoCFG " , show cfg]
     case structureCFG mkBreak mkContinue mkLoop mkIf cfg of
-        Right stmts -> return stmts
+        Right stmts -> do 
+            T.traceM $ concat ["return statements: "] -- , show stmts]
+            return stmts
         Left msg -> noTranslation node (msg ++ ":\n" ++ render (nest 4 (prettyRustCFG cfg)) ++ "\nfrom")
     where
     prettyRustCFG cfg = prettyCFG (vcat . map pPrint) (pPrint . result) cfg
@@ -2010,7 +2021,7 @@ inside a `loop`.
 
 ```haskell
     loopLabel l = Rust.Lifetime ("loop" ++ show l)
-    mkBreak l = [Rust.Stmt (Rust.Break (Just (loopLabel l)))]
+    mkBreak l = [Rust.Stmt (Rust.Break (Just (loopLabel (T.trace ("mkBreak: " ++ show l) l))))]
     mkContinue l = [Rust.Stmt (Rust.Continue (Just (loopLabel l)))]
     mkLoop l b = [Rust.Stmt (Rust.Loop (Just (loopLabel l)) (statementsToBlock b))]
     mkIf c t f = [Rust.Stmt (simplifyIf c (statementsToBlock t) (statementsToBlock f))]
@@ -2124,6 +2135,7 @@ data Result = Result
     , resultMutable :: Rust.Mutable
     , result :: Rust.Expr
     }
+    deriving Show
 ```
 
 ```haskell
