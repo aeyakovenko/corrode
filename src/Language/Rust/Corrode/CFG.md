@@ -477,8 +477,9 @@ depthFirstOrder cfg@(CFG start blocks) = CFG start' blocks'
     mapping = let a = IntMap.fromList (zip final [start'..])
               in  trace (concat ["mapping ", show a]) a
     rewrite label = IntMap.findWithDefault (error "basic block disappeared") label mapping
-    rewriteBlock label (BasicBlock body term) = trace ("rewriteBlock: " ++ show label) $
-        (label, BasicBlock body (fmap rewrite term))
+    rewriteBlock label (BasicBlock body term) = 
+        let a = (label, BasicBlock body (fmap rewrite term))
+        in trace ("rewriteBlock: " ++ show (a, term)) a
     blocks' = IntMap.fromList (IntMap.elems (IntMap.intersectionWith rewriteBlock mapping blocks))
 ```
 
